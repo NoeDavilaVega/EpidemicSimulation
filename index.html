@@ -1,9 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>My Site</title>
+  <title>Exponential Function Calculator</title>
 </head>
 <body>
-  <h1>Hello World</h1>
+
+  <h2>Exponential Function Calculator</h2>
+  <p>Formula: f(x) = a · b<sup>x</sup></p>
+
+  <label>a: </label>
+  <input type="number" id="a" value="1"><br><br>
+
+  <label>b: </label>
+  <input type="number" id="b" value="2"><br><br>
+
+  <label>x: </label>
+  <input type="number" id="x" value="0"><br><br>
+
+  <button onclick="calculate()">Calculate</button>
+
+  <h3 id="result"></h3>
+
+  <script>
+    function calculate() {
+      const a = parseFloat(document.getElementById("a").value);
+      const b = parseFloat(document.getElementById("b").value);
+      const x = parseFloat(document.getElementById("x").value);
+
+      const result = a * Math.pow(b, x);
+
+      document.getElementById("result").innerText = 
+        "Result: " + result;
+    }
+  </script>
+
 </body>
 </html>
