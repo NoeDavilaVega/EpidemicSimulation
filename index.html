@@ -21,18 +21,8 @@ background:white;
 margin-top:10px;
 }
 
-.controls{
-margin:10px;
-}
-
 .sliderBox{
 margin:6px;
-padding:4px;
-}
-
-.stats{
-font-size:18px;
-margin:10px;
 }
 
 .diseaseBlock{
@@ -43,8 +33,12 @@ margin:6px;
 display:inline-block;
 }
 
-</style>
+.stats{
+font-size:18px;
+margin:10px;
+}
 
+</style>
 </head>
 
 <body>
@@ -52,8 +46,6 @@ display:inline-block;
 <h1>Infection Simulator</h1>
 
 <canvas id="simCanvas" width="900" height="500"></canvas>
-
-<div class="controls">
 
 <div class="sliderBox">
 Population
@@ -79,25 +71,19 @@ Simulation Speed (ms)
 <span id="speedValue"></span>
 </div>
 
-</div>
-
 <button onclick="addDisease()">Add Disease</button>
 
 <div id="diseaseControls"></div>
 
 <div>
-
 <button onclick="start()">Play</button>
 <button onclick="pause()">Pause</button>
 <button onclick="reset()">Reset</button>
-
 </div>
 
 <div class="stats">
-
 Time: <span id="time">0</span> |
 Healthy: <span id="healthy">0</span>
-
 </div>
 
 <h2>Population Graph</h2>
@@ -111,9 +97,9 @@ let ctx=canvas.getContext("2d")
 
 let people=[]
 let diseases=[]
-let timer
+let timer=null
 let timeStep=0
-let chart
+let chart=null
 
 const colors=[
 "red","blue","purple","orange","brown",
@@ -149,6 +135,15 @@ reset()
 
 }
 
+function removeDisease(index){
+
+diseases.splice(index,1)
+
+renderDiseaseControls()
+reset()
+
+}
+
 function renderDiseaseControls(){
 
 let container=document.getElementById("diseaseControls")
@@ -161,7 +156,12 @@ div.className="diseaseBlock"
 
 div.innerHTML=`
 
-<b style="color:${d.color}">${d.name}</b>
+<input value="${d.name}"
+oninput="diseases[${i}].name=this.value; reset()">
+
+<br>
+
+<span style="color:${d.color}"><b>Color</b></span>
 
 <br>
 
@@ -178,19 +178,15 @@ oninput="diseases[${i}].infectivity=parseFloat(this.value)">
 Model
 <select onchange="diseases[${i}].model=this.value">
 
-<option value="exponential" ${d.model==="exponential"?"selected":""}>
-Exponential
-</option>
-
-<option value="quadratic" ${d.model==="quadratic"?"selected":""}>
-Quadratic
-</option>
-
-<option value="linear" ${d.model==="linear"?"selected":""}>
-Linear
-</option>
+<option value="exponential" ${d.model==="exponential"?"selected":""}>Exponential</option>
+<option value="quadratic" ${d.model==="quadratic"?"selected":""}>Quadratic</option>
+<option value="linear" ${d.model==="linear"?"selected":""}>Linear</option>
 
 </select>
+
+<br>
+
+<button onclick="removeDisease(${i})">Remove</button>
 
 `
 
@@ -202,7 +198,7 @@ container.appendChild(div)
 
 function reset(){
 
-clearInterval(timer)
+pause()
 
 people=[]
 timeStep=0
@@ -247,12 +243,14 @@ timeStep++
 
 let moveSpeed=parseFloat(moveSlider.value)
 
-let healthy=people.filter(p=>p.disease===null)
-
-let counts=Array(diseases.length).fill(0)
+let healthyList=[]
+let counts=new Array(diseases.length).fill(0)
 
 for(let p of people){
-if(p.disease!==null) counts[p.disease]++
+
+if(p.disease===null) healthyList.push(p)
+else counts[p.disease]++
+
 }
 
 for(let p of people){
@@ -272,15 +270,12 @@ let ratio=counts[p.disease]/people.length
 
 let prob=base
 
-if(disease.model==="linear")
-prob=base*ratio
+if(disease.model==="linear") prob=base*ratio
+if(disease.model==="quadratic") prob=base*ratio*ratio
 
-if(disease.model==="quadratic")
-prob=base*ratio*ratio
+if(Math.random()<prob && healthyList.length>0){
 
-if(Math.random()<prob && healthy.length>0){
-
-let target=healthy.pop()
+let target=healthyList.pop()
 target.disease=p.disease
 
 }
@@ -302,12 +297,10 @@ for(let p of people){
 ctx.beginPath()
 ctx.arc(p.x,p.y,4,0,Math.PI*2)
 
-if(p.disease===null){
+if(p.disease===null)
 ctx.fillStyle="white"
-}
-else{
+else
 ctx.fillStyle=diseases[p.disease].color
-}
 
 ctx.fill()
 ctx.stroke()
@@ -331,28 +324,31 @@ document.getElementById("healthy").innerText=healthy
 
 function start(){
 
-clearInterval(timer)
+pause()
 timer=setInterval(step,parseInt(speedSlider.value))
 
 }
 
 function pause(){
 
+if(timer){
 clearInterval(timer)
+timer=null
+}
 
 }
 
 function initGraph(){
 
+if(chart) chart.destroy()
+
 let ctx=document.getElementById("graphCanvas")
 
-let datasets=[
-{
+let datasets=[{
 label:"Healthy",
 borderColor:"green",
 data:[people.filter(p=>p.disease===null).length]
-}
-]
+}]
 
 diseases.forEach((d,i)=>{
 
@@ -379,7 +375,6 @@ scales:{
 x:{title:{display:true,text:"Time"}},
 y:{title:{display:true,text:"Population"}}
 }
-
 }
 
 })
@@ -390,17 +385,23 @@ function updateGraph(){
 
 chart.data.labels.push(timeStep)
 
-chart.data.datasets[0].data.push(
-people.filter(p=>p.disease===null).length
-)
+let healthy=0
+let counts=new Array(diseases.length).fill(0)
 
-diseases.forEach((d,i)=>{
+for(let p of people){
 
-chart.data.datasets[i+1].data.push(
-people.filter(p=>p.disease===i).length
-)
+if(p.disease===null) healthy++
+else counts[p.disease]++
 
-})
+}
+
+chart.data.datasets[0].data.push(healthy)
+
+for(let i=0;i<diseases.length;i++){
+
+chart.data.datasets[i+1].data.push(counts[i])
+
+}
 
 chart.update()
 
