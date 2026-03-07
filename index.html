@@ -2,352 +2,178 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Exponential Simulator Game</title>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>Infection Simulator</title>
 
 <style>
 
 body{
 font-family:Arial;
+text-align:center;
 background:#f4f4f4;
-max-width:1100px;
-margin:auto;
-padding:20px;
 }
 
-h1{
-text-align:center;
-}
-
-.panel{
+canvas{
+border:1px solid black;
 background:white;
-padding:20px;
-margin-bottom:20px;
-border-radius:10px;
-box-shadow:0 2px 5px rgba(0,0,0,.15);
 }
 
-button{
-padding:10px 18px;
-font-size:16px;
-margin:5px;
-cursor:pointer;
-}
-
-.slider{
-width:100%;
-}
-
-.stat{
-font-size:18px;
-margin:5px;
-}
-
-.scenario{
-font-size:18px;
-padding:15px;
-margin:10px;
-}
-
-.goal{
-font-size:22px;
-text-align:center;
-background:#fff3cd;
-padding:15px;
-border-radius:8px;
-}
-
-.math{
-background:#e8f4ff;
-padding:15px;
-border-radius:8px;
-}
-
-.toggle{
+.controls{
 margin:10px;
 }
 
 </style>
+
 </head>
 
 <body>
 
-<h1>Exponential Simulation Game</h1>
+<h1>Infection Simulator</h1>
 
-<div id="menu" class="panel">
+<div class="controls">
 
-<h2>Choose Your Challenge</h2>
+Population
+<input type="range" id="popSlider" min="50" max="400" value="200">
 
-<button class="scenario" onclick="start('credit')">
-💳 Escape Credit Card Debt
-</button>
+Starting Infected
+<input type="range" id="startSlider" min="1" max="20" value="3">
 
-<button class="scenario" onclick="start('invest')">
-📈 Become an Investment Millionaire
-</button>
+Infectivity
+<input type="range" id="infSlider" min="0" max="1" step="0.01" value="0.4">
 
-<button class="scenario" onclick="start('loan')">
-📉 Pay Off a Loan
-</button>
-
-<button class="scenario" onclick="start('lab')">
-🔬 Exponential Lab
-</button>
+Neighbors (k)
+<input type="range" id="kSlider" min="1" max="10" value="3">
 
 </div>
 
-<div id="game" style="display:none">
+<div class="controls">
 
-<div class="panel goal" id="goal"></div>
-
-<div class="panel">
-
-<div class="stat">Month: <span id="month">0</span></div>
-<div class="stat">Value: $<span id="value">0</span></div>
-<div class="stat">Total Interest: $<span id="interest">0</span></div>
-<div class="stat">Score: <span id="score">0</span></div>
-
-</div>
-
-<div class="panel">
-
-<label>Starting Value (a)</label>
-
-<input type="range" min="100" max="10000" value="2000" id="aSlider" class="slider">
-
-<span id="aValue"></span>
-
-<br><br>
-
-<label>Growth Factor (b)</label>
-
-<input type="range" min="0.95" max="1.05" step="0.001" value="1.02" id="bSlider" class="slider">
-
-<span id="bValue"></span>
-
-<br><br>
-
-<label id="paymentLabel">Monthly Payment</label>
-
-<input type="range" min="0" max="1000" value="100" id="paySlider" class="slider">
-
-<span id="payValue"></span>
-
-</div>
-
-<div class="panel">
-
-<button onclick="step()">Step 1 Month</button>
-<button onclick="step10()">Step 10 Months</button>
+<button onclick="start()">Start</button>
+<button onclick="pause()">Pause</button>
 <button onclick="reset()">Reset</button>
 
-</div>
-
-<div class="panel">
-
-<label class="toggle">
-
-<input type="checkbox" id="showTheory" checked>
-Show y = a(b)^x curve
-
-</label>
+Speed
+<input type="range" id="speedSlider" min="10" max="500" value="100">
 
 </div>
 
-<div class="panel">
-
-<canvas id="chart"></canvas>
-
-</div>
-
-<div class="panel math">
-
-<h3>Exponential Model</h3>
-
-<b>y = a(b)<sup>x</sup></b>
-
-<p>
-
-a = starting value
-
-<br>
-
-b = growth/decay factor
-
-<br>
-
-x = time
-
-</p>
-
-<p id="growthType"></p>
-
-</div>
-
-</div>
+<canvas id="simCanvas" width="800" height="500"></canvas>
 
 <script>
 
-let mode
-let month
-let value
-let totalInterest
-let history=[]
-let theory=[]
-let chart
+let canvas=document.getElementById("simCanvas")
+let ctx=canvas.getContext("2d")
 
-function start(m){
+let people=[]
+let running=false
+let timer
 
-mode=m
+function reset(){
 
-document.getElementById("menu").style.display="none"
-document.getElementById("game").style.display="block"
+people=[]
 
-if(mode=="credit"){
-document.getElementById("goal").innerText="Goal: Pay off the credit card with the least interest."
-}
+let population=parseInt(popSlider.value)
+let startInf=parseInt(startSlider.value)
 
-if(mode=="invest"){
-document.getElementById("goal").innerText="Goal: Reach $100,000 as fast as possible."
-}
+for(let i=0;i<population;i++){
 
-if(mode=="loan"){
-document.getElementById("goal").innerText="Goal: Pay off the loan before 60 months."
-}
-
-if(mode=="lab"){
-document.getElementById("goal").innerText="Experiment with exponential growth and decay."
-}
-
-initChart()
-reset()
-
-}
-
-function initChart(){
-
-chart=new Chart(document.getElementById("chart"),{
-
-type:"line",
-
-data:{
-labels:[],
-datasets:[
-{
-label:"Simulation",
-data:[]
-},
-{
-label:"y = a(b)^x",
-data:[]
-}
-]
-
-}
-
+people.push({
+x:Math.random()*canvas.width,
+y:Math.random()*canvas.height,
+infected:false
 })
 
 }
 
-function reset(){
+for(let i=0;i<startInf;i++){
+people[i].infected=true
+}
 
-month=0
-totalInterest=0
+draw()
 
-let a=parseFloat(aSlider.value)
+}
 
-value=a
+function distance(a,b){
 
-history=[value]
-theory=[value]
-
-chart.data.labels=[0]
-chart.data.datasets[0].data=[value]
-chart.data.datasets[1].data=[value]
-
-chart.update()
-
-updateUI()
+return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2)
 
 }
 
 function step(){
 
-let b=parseFloat(bSlider.value)
-let payment=parseFloat(paySlider.value)
+let infectivity=parseFloat(infSlider.value)
+let k=parseInt(kSlider.value)
 
-month++
+let newInfections=[]
 
-let interest=value*(b-1)
+for(let p of people){
 
-totalInterest+=Math.max(interest,0)
+if(!p.infected)continue
 
-value=value*b-payment
+let sorted=[...people]
 
-if(value<0)value=0
+sorted.sort((a,b)=>distance(p,a)-distance(p,b))
 
-history.push(value)
+for(let i=1;i<=k;i++){
 
-let a=parseFloat(aSlider.value)
+let neighbor=sorted[i]
 
-let theoretical=a*Math.pow(b,month)
+if(!neighbor.infected){
 
-theory.push(theoretical)
+if(Math.random()<infectivity){
 
-chart.data.labels.push(month)
-
-chart.data.datasets[0].data=history
-
-if(showTheory.checked)
-chart.data.datasets[1].data=theory
-else
-chart.data.datasets[1].data=[]
-
-chart.update()
-
-updateUI()
+newInfections.push(neighbor)
 
 }
 
-function step10(){
-
-for(let i=0;i<10;i++)step()
+}
 
 }
 
-function updateUI(){
+}
 
-monthDisplay.innerText=month
-valueDisplay.innerText=value.toFixed(2)
-interestDisplay.innerText=totalInterest.toFixed(2)
+for(let n of newInfections){
+n.infected=true
+}
 
-let score=Math.round(value-totalInterest)
-
-scoreDisplay.innerText=score
-
-aValue.innerText=aSlider.value
-bValue.innerText=bSlider.value
-payValue.innerText=paySlider.value
-
-let b=parseFloat(bSlider.value)
-
-if(b>1)growthType.innerText="Exponential Growth"
-else if(b<1)growthType.innerText="Exponential Decay"
-else growthType.innerText="Constant"
+draw()
 
 }
 
-aSlider.oninput=updateUI
-bSlider.oninput=updateUI
-paySlider.oninput=updateUI
+function draw(){
 
-const monthDisplay=document.getElementById("month")
-const valueDisplay=document.getElementById("value")
-const interestDisplay=document.getElementById("interest")
-const scoreDisplay=document.getElementById("score")
+ctx.clearRect(0,0,canvas.width,canvas.height)
 
-updateUI()
+for(let p of people){
+
+ctx.beginPath()
+
+ctx.arc(p.x,p.y,4,0,Math.PI*2)
+
+ctx.fillStyle=p.infected?"red":"white"
+
+ctx.fill()
+
+ctx.stroke()
+
+}
+
+}
+
+function start(){
+
+running=true
+
+timer=setInterval(step,speedSlider.value)
+
+}
+
+function pause(){
+
+clearInterval(timer)
+
+}
+
+reset()
 
 </script>
 
