@@ -4,20 +4,33 @@
 <meta charset="UTF-8">
 <title>Infection Simulator</title>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
 
 body{
 font-family:Arial;
-text-align:center;
 background:#f4f4f4;
+text-align:center;
+margin:20px;
 }
 
 canvas{
 border:1px solid black;
 background:white;
+margin-top:10px;
 }
 
 .controls{
+margin:10px;
+}
+
+.sliderBox{
+margin:6px;
+}
+
+.stats{
+font-size:18px;
 margin:10px;
 }
 
@@ -29,34 +42,68 @@ margin:10px;
 
 <h1>Infection Simulator</h1>
 
+<canvas id="simCanvas" width="900" height="500"></canvas>
+
 <div class="controls">
 
+<div class="sliderBox">
 Population
-<input type="range" id="popSlider" min="50" max="400" value="200">
+<input type="range" id="popSlider" min="50" max="500" value="250">
+<span id="popValue"></span>
+</div>
 
+<div class="sliderBox">
 Starting Infected
-<input type="range" id="startSlider" min="1" max="20" value="3">
+<input type="range" id="startSlider" min="1" max="20" value="5">
+<span id="startValue"></span>
+</div>
 
-Infectivity
-<input type="range" id="infSlider" min="0" max="1" step="0.01" value="0.4">
+<div class="sliderBox">
+Infectivity (Red)
+<input type="range" id="infSlider1" min="0" max="1" step="0.01" value="0.4">
+<span id="infValue1"></span>
+</div>
 
-Neighbors (k)
-<input type="range" id="kSlider" min="1" max="10" value="3">
+<div class="sliderBox">
+Infectivity (Blue)
+<input type="range" id="infSlider2" min="0" max="1" step="0.01" value="0.3">
+<span id="infValue2"></span>
+</div>
+
+<div class="sliderBox">
+Movement Speed
+<input type="range" id="moveSlider" min="0" max="5" step="0.2" value="1">
+<span id="moveValue"></span>
+</div>
+
+<div class="sliderBox">
+Simulation Speed (ms)
+<input type="range" id="speedSlider" min="10" max="400" value="80">
+<span id="speedValue"></span>
+</div>
 
 </div>
 
-<div class="controls">
+<div>
 
-<button onclick="start()">Start</button>
+<button onclick="start()">Play</button>
 <button onclick="pause()">Pause</button>
 <button onclick="reset()">Reset</button>
 
-Speed
-<input type="range" id="speedSlider" min="10" max="500" value="100">
+</div>
+
+<div class="stats">
+
+Time: <span id="time">0</span> |
+Healthy: <span id="healthy">0</span> |
+Red: <span id="redCount">0</span> |
+Blue: <span id="blueCount">0</span>
 
 </div>
 
-<canvas id="simCanvas" width="800" height="500"></canvas>
+<h2>Population Graph</h2>
+
+<canvas id="graphCanvas" width="900" height="350"></canvas>
 
 <script>
 
@@ -64,78 +111,107 @@ let canvas=document.getElementById("simCanvas")
 let ctx=canvas.getContext("2d")
 
 let people=[]
-let running=false
 let timer
+let timeStep=0
+let chart
+
+const spreadRadius=18
+
+function updateSliderLabels(){
+
+popValue.innerText=popSlider.value
+startValue.innerText=startSlider.value
+infValue1.innerText=infSlider1.value
+infValue2.innerText=infSlider2.value
+moveValue.innerText=moveSlider.value
+speedValue.innerText=speedSlider.value
+
+}
+
+document.querySelectorAll("input[type=range]").forEach(s=>{
+s.oninput=updateSliderLabels
+})
 
 function reset(){
 
+clearInterval(timer)
+
 people=[]
+timeStep=0
 
 let population=parseInt(popSlider.value)
-let startInf=parseInt(startSlider.value)
+let start=parseInt(startSlider.value)
 
 for(let i=0;i<population;i++){
 
 people.push({
 x:Math.random()*canvas.width,
 y:Math.random()*canvas.height,
-infected:false
+disease:null
 })
 
 }
 
-for(let i=0;i<startInf;i++){
-people[i].infected=true
+for(let i=0;i<start;i++){
+people[i].disease="red"
 }
 
+for(let i=start;i<start*2;i++){
+people[i].disease="blue"
+}
+
+initGraph()
 draw()
-
-}
-
-function distance(a,b){
-
-return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2)
+updateStats()
 
 }
 
 function step(){
 
-let infectivity=parseFloat(infSlider.value)
-let k=parseInt(kSlider.value)
+timeStep++
 
-let newInfections=[]
+let inf1=parseFloat(infSlider1.value)
+let inf2=parseFloat(infSlider2.value)
+let moveSpeed=parseFloat(moveSlider.value)
+
+let healthy=people.filter(p=>p.disease===null)
+
+let newInf=[]
 
 for(let p of people){
 
-if(!p.infected)continue
+// movement
+p.x+=(Math.random()-0.5)*moveSpeed*4
+p.y+=(Math.random()-0.5)*moveSpeed*4
 
-let sorted=[...people]
+p.x=Math.max(0,Math.min(canvas.width,p.x))
+p.y=Math.max(0,Math.min(canvas.height,p.y))
 
-sorted.sort((a,b)=>distance(p,a)-distance(p,b))
+if(p.disease===null) continue
 
-for(let i=1;i<=k;i++){
+let infectivity=p.disease==="red"?inf1:inf2
 
-let neighbor=sorted[i]
+if(Math.random()<infectivity && healthy.length>0){
 
-if(!neighbor.infected){
+let target=healthy.pop()
 
-if(Math.random()<infectivity){
+let angle=Math.random()*Math.PI*2
+let r=Math.random()*spreadRadius
 
-newInfections.push(neighbor)
+target.x=p.x+Math.cos(angle)*r
+target.y=p.y+Math.sin(angle)*r
+
+target.disease=p.disease
+
+newInf.push(target)
 
 }
 
-}
-
-}
-
-}
-
-for(let n of newInfections){
-n.infected=true
 }
 
 draw()
+updateStats()
+updateGraph()
 
 }
 
@@ -146,24 +222,44 @@ ctx.clearRect(0,0,canvas.width,canvas.height)
 for(let p of people){
 
 ctx.beginPath()
-
 ctx.arc(p.x,p.y,4,0,Math.PI*2)
 
-ctx.fillStyle=p.infected?"red":"white"
+if(p.disease==="red") ctx.fillStyle="red"
+else if(p.disease==="blue") ctx.fillStyle="blue"
+else ctx.fillStyle="white"
 
 ctx.fill()
-
 ctx.stroke()
 
 }
 
 }
 
+function updateStats(){
+
+let healthy=0
+let red=0
+let blue=0
+
+for(let p of people){
+
+if(p.disease==="red") red++
+else if(p.disease==="blue") blue++
+else healthy++
+
+}
+
+time.innerText=timeStep
+document.getElementById("healthy").innerText=healthy
+document.getElementById("redCount").innerText=red
+document.getElementById("blueCount").innerText=blue
+
+}
+
 function start(){
 
-running=true
-
-timer=setInterval(step,speedSlider.value)
+clearInterval(timer)
+timer=setInterval(step,parseInt(speedSlider.value))
 
 }
 
@@ -173,6 +269,60 @@ clearInterval(timer)
 
 }
 
+function initGraph(){
+
+let ctx=document.getElementById("graphCanvas")
+
+chart=new Chart(ctx,{
+
+type:"line",
+
+data:{
+labels:[0],
+datasets:[
+{
+label:"Healthy",
+borderColor:"green",
+data:[people.filter(p=>p.disease===null).length]
+},
+{
+label:"Red Disease",
+borderColor:"red",
+data:[people.filter(p=>p.disease==="red").length]
+},
+{
+label:"Blue Disease",
+borderColor:"blue",
+data:[people.filter(p=>p.disease==="blue").length]
+}
+]
+},
+
+options:{
+animation:false,
+scales:{
+x:{title:{display:true,text:"Time"}},
+y:{title:{display:true,text:"Population"}}
+}
+}
+
+})
+
+}
+
+function updateGraph(){
+
+chart.data.labels.push(timeStep)
+
+chart.data.datasets[0].data.push(people.filter(p=>p.disease===null).length)
+chart.data.datasets[1].data.push(people.filter(p=>p.disease==="red").length)
+chart.data.datasets[2].data.push(people.filter(p=>p.disease==="blue").length)
+
+chart.update()
+
+}
+
+updateSliderLabels()
 reset()
 
 </script>
