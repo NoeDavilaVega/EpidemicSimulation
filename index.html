@@ -7,7 +7,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-
 body{
 font-family:Arial;
 background:#f4f4f4;
@@ -41,7 +40,6 @@ font-weight:bold;
 color:darkred;
 margin-top:10px;
 }
-
 </style>
 </head>
 
@@ -107,6 +105,7 @@ const tickMS=50
 const dayLength=1000
 
 let infectionBuffer=[]
+let infectionAccumulator=[]
 
 const colors=[
 "red","blue","purple","orange","brown",
@@ -136,7 +135,6 @@ model:"exponential"
 
 renderDiseaseControls()
 reset()
-
 }
 
 function removeDisease(i){
@@ -156,9 +154,8 @@ let div=document.createElement("div")
 div.className="diseaseBlock"
 
 div.innerHTML=`
-
 <input value="${d.name}"
-oninput="diseases[${i}].name=this.value; reset()">
+oninput="diseases[${i}].name=this.value">
 
 <br>
 
@@ -181,22 +178,19 @@ oninput="diseases[${i}].infectivity=parseInt(this.value);document.getElementById
 Model
 <select onchange="diseases[${i}].model=this.value">
 
-<option value="exponential">Exponential</option>
-<option value="quadratic">Quadratic</option>
-<option value="linear">Linear</option>
+<option value="exponential" ${d.model==="exponential"?"selected":""}>Exponential</option>
+<option value="quadratic" ${d.model==="quadratic"?"selected":""}>Quadratic</option>
+<option value="linear" ${d.model==="linear"?"selected":""}>Linear</option>
 
 </select>
 
 <br>
 
 <button onclick="removeDisease(${i})">Remove</button>
-
 `
 
 container.appendChild(div)
-
 })
-
 }
 
 function reset(){
@@ -205,6 +199,7 @@ pause()
 
 people=[]
 infectionBuffer=[]
+infectionAccumulator=[]
 simTime=0
 lastDay=0
 
@@ -214,13 +209,11 @@ let population=parseInt(popSlider.value)
 let start=parseInt(startSlider.value)
 
 for(let i=0;i<population;i++){
-
 people.push({
 x:Math.random()*canvas.width,
 y:Math.random()*canvas.height,
 disease:null
 })
-
 }
 
 let index=0
@@ -228,22 +221,19 @@ let index=0
 for(let d=0;d<diseases.length;d++){
 
 for(let i=0;i<start;i++){
-
 if(index<people.length){
 people[index].disease=d
 index++
 }
-
 }
 
 infectionBuffer.push(0)
-
+infectionAccumulator.push(0)
 }
 
 initGraph()
 draw()
 updateStats()
-
 }
 
 function findClosestHealthy(px,py){
@@ -263,11 +253,9 @@ if(dist<bestDist){
 bestDist=dist
 closest=p
 }
-
 }
 
 return closest
-
 }
 
 function step(){
@@ -283,10 +271,7 @@ p.y+=(Math.random()-0.5)*moveSpeed*4
 
 p.x=Math.max(0,Math.min(canvas.width,p.x))
 p.y=Math.max(0,Math.min(canvas.height,p.y))
-
 }
-
-let healthy=people.filter(p=>p.disease===null)
 
 let day=Math.floor(simTime/dayLength)
 
@@ -314,35 +299,32 @@ else
 newCases=infected*x
 
 infectionBuffer[i]+=newCases
-
 }
 
 lastDay=day
-
 }
 
 for(let i=0;i<diseases.length;i++){
 
-let spreadPerTick=infectionBuffer[i]*(tickMS/dayLength)
-let cases=Math.floor(spreadPerTick)
+let perTick=infectionBuffer[i]/(dayLength/tickMS)
 
-for(let j=0;j<cases;j++){
+infectionAccumulator[i]+=perTick
+
+while(infectionAccumulator[i]>=1){
 
 let carriers=people.filter(p=>p.disease===i)
-
 if(carriers.length===0) break
 
 let carrier=carriers[Math.floor(Math.random()*carriers.length)]
 
 let target=findClosestHealthy(carrier.x,carrier.y)
-
 if(!target) break
 
 target.disease=i
-infectionBuffer[i]--
 
+infectionAccumulator[i]-=1
+infectionBuffer[i]-=1
 }
-
 }
 
 draw()
@@ -353,7 +335,6 @@ if(people.every(p=>p.disease!==null)){
 pause()
 document.getElementById("status").innerText="Simulation finished: entire population infected."
 }
-
 }
 
 function draw(){
@@ -372,9 +353,7 @@ ctx.fillStyle=diseases[p.disease].color
 
 ctx.fill()
 ctx.stroke()
-
 }
-
 }
 
 function updateStats(){
@@ -383,7 +362,6 @@ let healthy=people.filter(p=>p.disease===null).length
 
 document.getElementById("time").innerText=(simTime/1000).toFixed(2)
 document.getElementById("healthy").innerText=healthy
-
 }
 
 function start(){
@@ -429,12 +407,11 @@ y:{title:{display:true,text:"Population"}}
 }
 }
 })
-
 }
 
 function updateGraph(){
 
-let t=(simTime/1000)
+let t=simTime/1000
 
 chart.data.labels.push(t)
 
@@ -445,7 +422,6 @@ for(let p of people){
 
 if(p.disease===null) healthy++
 else counts[p.disease]++
-
 }
 
 chart.data.datasets[0].data.push(healthy)
@@ -454,7 +430,6 @@ for(let i=0;i<diseases.length;i++)
 chart.data.datasets[i+1].data.push(counts[i])
 
 chart.update()
-
 }
 
 updateSliderLabels()
