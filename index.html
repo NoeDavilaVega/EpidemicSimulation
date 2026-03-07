@@ -21,9 +21,7 @@ background:white;
 margin-top:10px;
 }
 
-.sliderBox{
-margin:6px;
-}
+.sliderBox{margin:6px;}
 
 .diseaseBlock{
 border:1px solid #ccc;
@@ -40,8 +38,8 @@ margin:10px;
 
 #status{
 font-weight:bold;
-margin-top:10px;
 color:darkred;
+margin-top:10px;
 }
 
 </style>
@@ -60,7 +58,7 @@ Population
 </div>
 
 <div class="sliderBox">
-Starting Infected (per disease)
+Starting Infected
 <input type="range" id="startSlider" min="1" max="50" value="5">
 <span id="startValue"></span>
 </div>
@@ -69,12 +67,6 @@ Starting Infected (per disease)
 Movement Speed
 <input type="range" id="moveSlider" min="0" max="5" step="0.2" value="1">
 <span id="moveValue"></span>
-</div>
-
-<div class="sliderBox">
-Simulation Speed (ms)
-<input type="range" id="speedSlider" min="10" max="400" value="80">
-<span id="speedValue"></span>
 </div>
 
 <button onclick="addDisease()">Add Disease</button>
@@ -88,7 +80,7 @@ Simulation Speed (ms)
 </div>
 
 <div class="stats">
-Time: <span id="time">0</span> |
+Day: <span id="time">0</span> |
 Healthy: <span id="healthy">0</span>
 </div>
 
@@ -105,9 +97,16 @@ let ctx=canvas.getContext("2d")
 
 let people=[]
 let diseases=[]
-let timer=null
-let timeStep=0
 let chart=null
+let timer=null
+
+let simTime=0
+let lastDay=0
+
+const tickMS=50
+const dayLength=1000
+
+let infectionBuffer=[]
 
 const colors=[
 "red","blue","purple","orange","brown",
@@ -118,7 +117,6 @@ function updateSliderLabels(){
 popValue.innerText=popSlider.value
 startValue.innerText=startSlider.value
 moveValue.innerText=moveSlider.value
-speedValue.innerText=speedSlider.value
 }
 
 document.querySelectorAll("input[type=range]").forEach(s=>{
@@ -132,7 +130,7 @@ let id=diseases.length
 diseases.push({
 name:"Disease "+(id+1),
 color:colors[id%colors.length],
-infectivity:0.5,
+infectivity:2,
 model:"exponential"
 })
 
@@ -168,22 +166,22 @@ oninput="diseases[${i}].name=this.value; reset()">
 
 <br>
 
-Infectivity
+Infectivity (x)
 <input type="range"
-min="0"
-max="3"
-step="0.1"
+min="1"
+max="10"
+step="1"
 value="${d.infectivity}"
-oninput="diseases[${i}].infectivity=parseFloat(this.value)">
+oninput="diseases[${i}].infectivity=parseInt(this.value)">
 
 <br>
 
 Model
 <select onchange="diseases[${i}].model=this.value">
 
-<option value="exponential" ${d.model==="exponential"?"selected":""}>Exponential</option>
-<option value="quadratic" ${d.model==="quadratic"?"selected":""}>Quadratic</option>
-<option value="linear" ${d.model==="linear"?"selected":""}>Linear</option>
+<option value="exponential">Exponential</option>
+<option value="quadratic">Quadratic</option>
+<option value="linear">Linear</option>
 
 </select>
 
@@ -204,7 +202,9 @@ function reset(){
 pause()
 
 people=[]
-timeStep=0
+infectionBuffer=[]
+simTime=0
+lastDay=0
 
 document.getElementById("status").innerText=""
 
@@ -234,6 +234,8 @@ index++
 
 }
 
+infectionBuffer.push(0)
+
 }
 
 initGraph()
@@ -244,50 +246,9 @@ updateStats()
 
 function step(){
 
-timeStep++
+simTime+=tickMS
 
 let moveSpeed=parseFloat(moveSlider.value)
-
-let healthy=[]
-let counts=new Array(diseases.length).fill(0)
-
-for(let p of people){
-
-if(p.disease===null) healthy.push(p)
-else counts[p.disease]++
-
-}
-
-let infections=new Array(diseases.length).fill(0)
-
-for(let i=0;i<diseases.length;i++){
-
-let x=counts[i]
-let r=diseases[i].infectivity
-
-if(diseases[i].model==="linear")
-infections[i]=Math.floor(r*x)
-
-else if(diseases[i].model==="quadratic")
-infections[i]=Math.floor(r*x*x)
-
-else
-infections[i]=Math.floor(r*x)
-
-}
-
-for(let i=0;i<diseases.length;i++){
-
-for(let j=0;j<infections[i];j++){
-
-if(healthy.length===0) break
-
-let target=healthy.pop()
-target.disease=i
-
-}
-
-}
 
 for(let p of people){
 
@@ -299,9 +260,64 @@ p.y=Math.max(0,Math.min(canvas.height,p.y))
 
 }
 
+let healthy=people.filter(p=>p.disease===null)
+
+let day=Math.floor(simTime/dayLength)
+
+if(day>lastDay){
+
+let counts=new Array(diseases.length).fill(0)
+
+for(let p of people){
+if(p.disease!==null) counts[p.disease]++
+}
+
+for(let i=0;i<diseases.length;i++){
+
+let x=diseases[i].infectivity
+let infected=counts[i]
+
+let newCases=0
+
+if(diseases[i].model==="linear")
+newCases=x
+
+else if(diseases[i].model==="quadratic")
+newCases=x*x
+
+else
+newCases=infected*x
+
+infectionBuffer[i]+=newCases
+
+}
+
+lastDay=day
+updateGraph()
+
+}
+
+for(let i=0;i<diseases.length;i++){
+
+let spreadPerTick=infectionBuffer[i]*(tickMS/dayLength)
+
+let cases=Math.floor(spreadPerTick)
+
+for(let j=0;j<cases;j++){
+
+if(healthy.length===0) break
+
+let target=healthy.pop()
+target.disease=i
+
+infectionBuffer[i]--
+
+}
+
+}
+
 draw()
 updateStats()
-updateGraph()
 
 if(healthy.length===0){
 pause()
@@ -338,23 +354,21 @@ let healthy=0
 for(let p of people)
 if(p.disease===null) healthy++
 
-time.innerText=timeStep
+document.getElementById("time").innerText=Math.floor(simTime/dayLength)
 document.getElementById("healthy").innerText=healthy
 
 }
 
 function start(){
 pause()
-timer=setInterval(step,parseInt(speedSlider.value))
+timer=setInterval(step,tickMS)
 }
 
 function pause(){
-
 if(timer){
 clearInterval(timer)
 timer=null
 }
-
 }
 
 function initGraph(){
@@ -370,13 +384,11 @@ data:[people.filter(p=>p.disease===null).length]
 }]
 
 diseases.forEach((d,i)=>{
-
 datasets.push({
 label:d.name,
 borderColor:d.color,
 data:[people.filter(p=>p.disease===i).length]
 })
-
 })
 
 chart=new Chart(ctx,{
@@ -385,7 +397,7 @@ data:{labels:[0],datasets:datasets},
 options:{
 animation:false,
 scales:{
-x:{title:{display:true,text:"Time"}},
+x:{title:{display:true,text:"Days"}},
 y:{title:{display:true,text:"Population"}}
 }
 }
@@ -395,7 +407,9 @@ y:{title:{display:true,text:"Population"}}
 
 function updateGraph(){
 
-chart.data.labels.push(timeStep)
+let day=Math.floor(simTime/dayLength)
+
+chart.data.labels.push(day)
 
 let healthy=0
 let counts=new Array(diseases.length).fill(0)
