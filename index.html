@@ -32,6 +32,7 @@ button{
 padding:10px 15px;
 font-size:16px;
 cursor:pointer;
+margin:5px;
 }
 
 input{
@@ -44,13 +45,40 @@ font-size:18px;
 margin:5px 0;
 }
 
+#eventBox{
+font-size:28px;
+text-align:center;
+padding:25px;
+background:#fff3cd;
+border-radius:10px;
+margin-bottom:10px;
+}
+
 #taunt{
 color:#a00;
 font-weight:bold;
+text-align:center;
 }
 
 canvas{
 background:white;
+}
+
+#menu{
+text-align:center;
+}
+
+.cardChoice{
+padding:15px;
+margin:10px;
+font-size:18px;
+}
+
+.mathHint{
+background:#e8f4ff;
+padding:15px;
+border-radius:8px;
+margin-top:10px;
 }
 
 </style>
@@ -60,11 +88,25 @@ background:white;
 
 <h1>Credit Card Debt Simulator</h1>
 
+<div id="menu" class="panel">
+
+<h2>Choose Your Credit Card</h2>
+
+<button class="cardChoice" onclick="startGame(18)">Student Card (18% APR)</button>
+<button class="cardChoice" onclick="startGame(22)">Standard Card (22% APR)</button>
+<button class="cardChoice" onclick="startGame(29)">Store Card (29% APR)</button>
+
+<p>Each card compounds interest monthly.</p>
+
+</div>
+
+<div id="game" style="display:none">
+
 <div class="panel">
 
 <div class="stat">Month: <span id="month">0</span></div>
 <div class="stat">Balance: $<span id="balance">0</span></div>
-<div class="stat">APR: <span id="apr">22</span>%</div>
+<div class="stat">APR: <span id="apr">0</span>%</div>
 <div class="stat">Total Interest Paid: $<span id="interestPaid">0</span></div>
 
 </div>
@@ -82,41 +124,117 @@ background:white;
 </div>
 
 <div class="panel">
-<div id="event"></div>
+
+<div id="eventBox">Welcome to the simulation.</div>
+
 <div id="taunt"></div>
+
 </div>
 
 <div class="panel">
+
 <canvas id="chart"></canvas>
+
+</div>
+
+<div class="panel mathHint">
+
+<h3>Math Connection</h3>
+
+<p>The balance grows according to an exponential model:</p>
+
+<p><b>y = a(b)<sup>x</sup></b></p>
+
+<ul>
+
+<li><b>a</b> = starting balance</li>
+
+<li><b>b</b> = growth factor (interest)</li>
+
+<li><b>x</b> = number of months</li>
+
+</ul>
+
+<p>
+
+Each month the balance multiplies by:
+
+<b>b = 1 + (APR / 12)</b>
+
+</p>
+
+<p>
+
+Example:
+
+If APR = 24%
+
+<br>
+
+Monthly rate = 0.24 / 12 = 0.02
+
+<br>
+
+Growth factor:
+
+<b>b = 1.02</b>
+
+</p>
+
+<p>
+
+That means the balance follows:
+
+<br>
+
+<b>Balance ≈ a(1.02)<sup>x</sup></b>
+
+</p>
+
+</div>
+
 </div>
 
 <script>
 
-let balance = 2000
-let apr = 22
-let month = 0
-let totalInterest = 0
-let history = [balance]
+let balance
+let apr
+let month
+let totalInterest
+let history
+let chart
 
 let events = [
 { text:"Car repair! +$500", amount:500 },
 { text:"Bought a new phone! +$900", amount:900 },
 { text:"Medical bill! +$700", amount:700 },
 { text:"Concert tickets! +$300", amount:300 },
-{ text:"You were responsible this month.", amount:0 }
+{ text:"No extra expenses this month.", amount:0 }
 ]
 
 let taunts = [
-"The bank appreciates your business.",
+"The bank appreciates your interest payments.",
 "Minimum payments make us very rich.",
-"See you in debt for 20 years!",
 "Interest never sleeps.",
 "The bank CEO thanks you personally."
 ]
 
+function startGame(cardAPR){
+
+document.getElementById("menu").style.display="none"
+document.getElementById("game").style.display="block"
+
+balance = 2000
+apr = cardAPR
+month = 0
+totalInterest = 0
+history = [balance]
+
+document.getElementById("apr").innerText = apr
+
 const ctx = document.getElementById("chart")
 
-const chart = new Chart(ctx,{
+chart = new Chart(ctx,{
 type:"line",
 data:{
 labels:["0"],
@@ -125,10 +243,12 @@ label:"Balance",
 data:[balance]
 }]
 },
-options:{
-responsive:true
-}
+options:{responsive:true}
 })
+
+updateDisplay()
+
+}
 
 function minimumPayment(){
 
@@ -144,11 +264,11 @@ let e = events[Math.floor(Math.random()*events.length)]
 
 balance += e.amount
 
-document.getElementById("event").innerText = e.text
+document.getElementById("eventBox").innerText = e.text
 
 }else{
 
-document.getElementById("event").innerText = ""
+document.getElementById("eventBox").innerText = "Nothing unusual happened this month."
 
 }
 
@@ -178,7 +298,8 @@ function nextMonth(){
 
 if(balance<=0){
 
-alert("You escaped debt!")
+document.getElementById("eventBox").innerText = "You paid off the card! Congratulations."
+
 return
 
 }
@@ -219,15 +340,7 @@ bankTaunt()
 
 updateDisplay()
 
-if(month>=36 && balance>0){
-
-alert("36 months passed. You are still in debt!")
-
 }
-
-}
-
-updateDisplay()
 
 </script>
 
